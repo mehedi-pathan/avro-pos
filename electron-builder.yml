@@ -1,0 +1,42 @@
+appId: com.avro.pos
+productName: Avro POS
+asar: true
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/main/**/*
+  - dist/renderer/**/*
+  - package.json
+
+extraResources:
+  - from: prisma/schema.prisma
+    to: prisma/schema.prisma
+  - from: prisma/migrations
+    to: prisma/migrations
+  - from: node_modules/.prisma
+    to: node_modules/.prisma
+    filter:
+      - "**/*"
+
+mac:
+  category: public.app-category.business
+  target:
+    - dmg
+
+win:
+  target:
+    - nsis
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+publish:
+  provider: github
+  owner: mehedi-pathan
+  repo: avro-pos
+  releaseType: release

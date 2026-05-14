@@ -1,0 +1,178 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "darwin-arm64", "darwin", "windows", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  staffId      String     @unique
+  username     String     @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  /// Allowed values: OWNER, MANAGER, SALESMAN
+  role         String     @default("SALESMAN")
+  isActive     Boolean    @default(true)
+  joinedAt     DateTime   @default(now())
+  lastLoginAt  DateTime?
+  lastLoginIp  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  auditLogs    AuditLog[]
+  sales        Sale[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  email     String?
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sales     Sale[]
+}
+
+model Category {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  subcategories Subcategory[]
+}
+
+model Subcategory {
+  id         String     @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  products   Product[]
+
+  @@unique([name, categoryId])
+}
+
+model Product {
+  id            String       @id @default(cuid())
+  sku           String       @unique
+  name          String
+  price         Decimal
+  purchasePrice Decimal      @default(0)
+  stockLevel    Int          @default(0)
+  lowStockAt    Int          @default(5)
+  category      String?
+  subcategoryId String?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
+  barcodeSvg    String?
+  imagePath     String?
+  vatType       String       @default("EXCLUSIVE")
+  vatRate       Decimal      @default(0)
+  brand         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  saleItems     SaleItem[]
+  refundItems   RefundItem[]
+
+  @@index([subcategoryId])
+}
+
+model Sale {
+  id                  String     @id @default(cuid())
+  receiptNumber       String?
+  userId              String?
+  customerId          String?
+  subtotal            Decimal
+  discount            Decimal    @default(0)
+  tax                 Decimal
+  totalAmount         Decimal
+  loyaltyPointsEarned Int        @default(0)
+  paymentMethod       String?
+  createdAt           DateTime   @default(now())
+  customer            Customer?  @relation(fields: [customerId], references: [id])
+  user                User?      @relation(fields: [userId], references: [id])
+  items               SaleItem[]
+  refunds             Refund[]
+
+  @@index([customerId])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  productId String
+  quantity  Int
+  unitPrice Decimal
+  lineTotal Decimal
+  product   Product @relation(fields: [productId], references: [id])
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Supplier {
+  id         String   @id @default(cuid())
+  name       String
+  contactPerson String?
+  email      String?
+  phone      String?
+  address    String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Refund {
+  id         String       @id @default(cuid())
+  saleId     String
+  reason     String       @default("")
+  totalRefund Decimal
+  createdAt  DateTime     @default(now())
+  sale       Sale         @relation(fields: [saleId], references: [id])
+  items      RefundItem[]
+
+  @@index([saleId])
+}
+
+model RefundItem {
+  id         String  @id @default(cuid())
+  refundId   String
+  saleItemId String?
+  productId  String
+  quantity   Int
+  unitPrice  Decimal
+  lineTotal  Decimal
+  refund     Refund  @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id])
+
+  @@index([refundId])
+  @@index([productId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  description String
+  metadata    String?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

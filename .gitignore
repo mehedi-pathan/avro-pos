@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+renderer/.next/
+.env
+.env.local
+credentials/
+*.db
+*.db-journal
+*.log

@@ -1,0 +1,48 @@
+{
+  "name": "avro-pos",
+  "version": "2.0.3.12",
+  "description": "Local-first desktop POS system built with Next.js, Electron, Prisma, and SQLite.",
+  "author": "Avro POS",
+  "private": true,
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "next dev renderer -p 3000",
+    "dev:electron": "wait-on http://localhost:3000 && tsc -p tsconfig.electron.json && electron dist/main/main.js",
+    "build": "npm run prisma:generate && next build renderer && tsc -p tsconfig.electron.json",
+    "dist": "npm run build && electron-builder",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
+    "lint": "next lint renderer"
+  },
+  "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "electron-store": "^8.2.0",
+    "framer-motion": "^12.38.0",
+    "googleapis": "^144.0.0",
+    "next": "^15.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.8.1",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.9.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.15",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "wait-on": "^8.0.1"
+  }
+}

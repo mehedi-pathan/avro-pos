@@ -3,7 +3,7 @@ import path from "node:path";
 import http from "node:http";
 import { URL } from "node:url";
 import { randomBytes } from "node:crypto";
-import { BrowserWindow } from "electron";
+import { BrowserWindow, app } from "electron";
 import { google } from "googleapis";
 import Store from "electron-store";
 
@@ -28,7 +28,7 @@ async function loadCredentials() {
   if (!rawPath) {
     throw new Error("GOOGLE_APPLICATION_CREDENTIALS not set. Point it to your OAuth client credentials JSON file.");
   }
-  const projectRoot = process.cwd();
+  const projectRoot = app.isPackaged ? process.resourcesPath : process.cwd();
   const resolvedPath = path.isAbsolute(rawPath) ? rawPath : path.join(projectRoot, rawPath);
   const raw = await fs.readFile(resolvedPath, "utf8");
   const parsed = JSON.parse(raw);

@@ -273,7 +273,18 @@ export function ProductForm({
                 <select
                   className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-input)] px-3 py-2 text-sm text-ink"
                   value={form.subcategoryId}
-                  onChange={(e) => setForm({ ...form, subcategoryId: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Check if the selected value is a category ID (no subcategories) or subcategory ID
+                    const selectedCategory = categories.find(c => c.id === value);
+                    if (selectedCategory && selectedCategory.subcategories.length === 0) {
+                      // This is a category without subcategories - store in category field
+                      setForm({ ...form, category: value, subcategoryId: "" });
+                    } else {
+                      // This is a subcategory - store in subcategoryId field
+                      setForm({ ...form, category: "", subcategoryId: value });
+                    }
+                  }}
                 >
                   <option value="">No category</option>
                   {categories.map((c) => (
@@ -294,25 +305,24 @@ export function ProductForm({
                   <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
                 </div>
               )}
-            </form>
 
-            <div className="flex items-center gap-3 border-t border-[var(--border-default)] px-5 py-4 shrink-0">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex-1 rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-ink hover:bg-teal/90 transition-all disabled:opacity-50"
-                onClick={handleSubmit}
-              >
-                {saving ? "Saving..." : form.id ? "Update Product" : "Add Product"}
-              </button>
-              <button
-                type="button"
-                className="flex-1 rounded-lg border border-[var(--border-light)] px-4 py-2.5 text-sm text-[var(--text-default)] hover:bg-[var(--bg-card-hover)] transition-all"
-                onClick={onClose}
-              >
-                Cancel
-              </button>
-            </div>
+              <div className="flex items-center gap-3 border-t border-[var(--border-default)] px-5 py-4 shrink-0">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-ink hover:bg-teal/90 transition-all disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : form.id ? "Update Product" : "Add Product"}
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 rounded-lg border border-[var(--border-light)] px-4 py-2.5 text-sm text-[var(--text-default)] hover:bg-[var(--bg-card-hover)] transition-all"
+                  onClick={onClose}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </motion.div>
         </>
       )}

@@ -25,17 +25,23 @@ model User {
   updatedAt    DateTime   @updatedAt
   auditLogs    AuditLog[]
   sales        Sale[]
+  expenses     Expense[]
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String   @unique
-  email     String?
-  points    Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  sales     Sale[]
+  id           String        @id @default(cuid())
+  name         String
+  phone        String        @unique
+  email        String?
+  address      String?
+  points       Int           @default(0)
+  binNumber    String?
+  tinNumber    String?
+  membershipId String?
+  customerType String @default("WALK_IN")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sales        Sale[]
 }
 
 model Category {
@@ -83,37 +89,104 @@ model Product {
 }
 
 model Sale {
-  id                  String     @id @default(cuid())
-  receiptNumber       String?
-  userId              String?
-  customerId          String?
-  subtotal            Decimal
-  discount            Decimal    @default(0)
-  tax                 Decimal
-  totalAmount         Decimal
-  loyaltyPointsEarned Int        @default(0)
-  paymentMethod       String?
-  createdAt           DateTime   @default(now())
-  customer            Customer?  @relation(fields: [customerId], references: [id])
-  user                User?      @relation(fields: [userId], references: [id])
-  items               SaleItem[]
-  refunds             Refund[]
+  id                    String        @id @default(cuid())
+  receiptNumber         String?       @unique
+  invoiceUuid           String?       @unique
+  invoiceFiscalYear     String?
+  invoiceSequenceDate   String?
+  branchId              String?
+  branchName            String?
+  terminalId            String?
+  shiftNumber           String?
+  sessionNumber         String?
+  saleType              String        @default("RETAIL")
+  status                String        @default("PAID")
+  customerType          String        @default("WALK_IN")
+  customerBinTin        String?
+  customerMembershipId  String?
+  paidAmount            Decimal       @default(0)
+  changeAmount          Decimal       @default(0)
+  dueAmount             Decimal       @default(0)
+  mushakReference       String?
+  cancellationReference String?
+  creditNoteReference   String?
+  paymentMethod         String?
+  paymentDetails        String?
+  userId                String?
+  customerId            String?
+  subtotal              Decimal
+  discount              Decimal       @default(0)
+  tax                   Decimal
+  totalAmount           Decimal
+  loyaltyPointsEarned   Int           @default(0)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  customer              Customer?     @relation(fields: [customerId], references: [id])
+  user                  User?         @relation(fields: [userId], references: [id])
+  items                 SaleItem[]
+  payments              SalePayment[]
+  refunds               Refund[]
 
   @@index([customerId])
+  @@index([branchId])
+  @@index([terminalId])
 }
 
 model SaleItem {
-  id        String  @id @default(cuid())
-  saleId    String
-  productId String
-  quantity  Int
-  unitPrice Decimal
-  lineTotal Decimal
-  product   Product @relation(fields: [productId], references: [id])
-  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(cuid())
+  saleId               String
+  productId            String
+  quantity             Int
+  unitPrice            Decimal
+  lineSubtotal         Decimal
+  lineTotal            Decimal
+  productNameSnapshot  String
+  productSkuSnapshot   String
+  productBarcodeSnapshot String?
+  productUnit          String?
+  productVariant       String?
+  productBatch         String?
+  productExpiry        String?
+  productWarrantyId    String?
+  itemDiscountAmount   Decimal   @default(0)
+  vatRate              Decimal   @default(0)
+  vatAmount            Decimal   @default(0)
+  sdAmount             Decimal   @default(0)
+  serviceChargeAmount  Decimal   @default(0)
+  product              Product   @relation(fields: [productId], references: [id])
+  sale                 Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
   @@index([productId])
+}
+
+model SalePayment {
+  id              String   @id @default(cuid())
+  saleId          String
+  method          String
+  amount          Decimal
+  transactionId   String?
+  gatewayReference String?
+  authorizationCode String?
+  status          String?
+  createdAt       DateTime @default(now())
+  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+}
+
+model InvoiceSequence {
+  id           String   @id @default(cuid())
+  branchId     String
+  branchName   String
+  fiscalYear   String
+  sequenceDate String
+  counter      Int      @default(0)
+  backupUuid   String   @default(uuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([branchId, fiscalYear, sequenceDate])
 }
 
 model Supplier {
@@ -175,4 +248,17 @@ model Setting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  amount      Decimal
+  category    String
+  description String?
+  date        DateTime @default(now())
+  userId      String?
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([date])
 }

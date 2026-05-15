@@ -23,7 +23,12 @@ const config: Config = {
         accent: "var(--accent-primary)",
         danger: "var(--color-danger)",
         clay: "var(--text-primary)",
-        saffron: "var(--text-message)"
+        saffron: "var(--text-message)",
+        frame: "var(--bg-frame)"
+      },
+      borderRadius: {
+        frame: "24px",
+        card: "16px"
       }
     }
   },

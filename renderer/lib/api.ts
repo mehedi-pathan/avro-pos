@@ -1,4 +1,4 @@
-import type { BusinessSettings, Category, Customer, LoginResult, Product, Sale, SalePayload, StaffUser, Subcategory } from "./types";
+import type { BusinessSettings, Category, Customer, LoginResult, Product, Sale, SalePayload, StaffUser, Subcategory, Expense } from "./types";
 
 export type AvroApi = {
   login: (username: string, password: string) => Promise<LoginResult>;
@@ -59,8 +59,15 @@ export type AvroApi = {
   scheduleBackup: (intervalMs: number, targetFolder?: string) => Promise<{ active: boolean }>;
   stopScheduledBackup: () => Promise<{ active: boolean }>;
   getBackupScheduleStatus: () => Promise<{ active: boolean }>;
+  backupOnClose: () => Promise<{
+    localBackup: { success: boolean; path: string };
+    driveBackup: { success: boolean; message: string };
+  }>;
+  confirmClose: () => Promise<boolean>;
+  onCloseRequest: (callback: (...args: unknown[]) => void) => () => void;
   generateBarcode: (productId: string) => Promise<{ productId: string; sku: string; barcodeSvg: string }>;
   formatReceipt: (payload: unknown) => Promise<string>;
+  formatInvoiceA4: (payload: unknown) => Promise<string>;
   formatBarcodeLabel: (payload: unknown) => Promise<string>;
   processReturn: (payload: { actorId?: string; saleId: string; reason?: string; items: Array<{ saleItemId: string; productId: string; quantity: number; unitPrice: number }> }) => Promise<unknown>;
   listRefunds: (saleId?: string) => Promise<Array<unknown>>;
@@ -70,10 +77,13 @@ export type AvroApi = {
   getSalesAnalytics: () => Promise<{
     todayRevenue: number;
     todayCount: number;
+    todayExpenses: number;
     totalSales30d: number;
     revenue30d: number;
+    expenses30d: number;
     dailyLabels: string[];
     dailyValues: number[];
+    dailyExpenses: number[];
     topProducts: Array<{ name: string; total: number; count: number }>;
   }>;
   getDashboardStats: () => Promise<{
@@ -83,12 +93,13 @@ export type AvroApi = {
     todayCount: number;
     yesterdayCount: number;
     orderChange: number;
+    todayExpenses: number;
     totalItemsSold: number;
     newCustomers: number;
     hourlyData: Array<{ hour: string; revenue: number }>;
     topProducts: Array<{ productId: string; name: string; imagePath: string | null; unitsSold: number; revenue: number }>;
     lowStock: Array<{ id: string; name: string; sku: string; stockLevel: number; lowStockAt: number; imagePath: string | null }>;
-    recentActivity: Array<{ id: string; type: string; description: string; amount: number | null; createdAt: string }>;
+    recentActivity: Array<{ id: string; type: "sale" | "inventory" | "expense" | "other"; description: string; amount: number | null; createdAt: string }>;
   }>;
   bulkCreateProducts: (products: Array<{ sku: string; name: string; price: number; stockLevel: number; lowStockAt?: number; category?: string }>) => Promise<{ created: number; skipped: number }>;
   listCategories: () => Promise<Category[]>;
@@ -112,6 +123,8 @@ export type AvroApi = {
     publishedAt: string;
     downloadUrl: string;
   } | null>;
+  createExpense: (expense: { amount: number; category: string; description?: string; date?: string; userId?: string }) => Promise<Expense>;
+  listExpenses: (filter?: { startDate?: string; endDate?: string }) => Promise<Expense[]>;
 };
 
 declare global {

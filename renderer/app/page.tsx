@@ -5,6 +5,7 @@ import { avroApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { MainLayout } from "@/components/MainLayout";
 import { DashboardView } from "@/components/DashboardView";
+import { APP_VERSION } from "@/lib/version";
 
 export default function HomePage() {
   const { user, login } = useAuth();
@@ -94,7 +95,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="absolute bottom-8 left-12 z-10">
-              <p className="text-xs text-white/30">Avro POS v2.0.3.12</p>
+              <p className="text-xs text-white/30">Avro POS v{APP_VERSION}</p>
             </div>
           </div>
 
@@ -210,7 +211,7 @@ export default function HomePage() {
                 Developed by <a href="https://mehedipathan.online" target="_blank" rel="noopener noreferrer" className="text-[var(--bg-teal)] hover:underline">Mehedi Pathan</a>
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                &copy; 2023 &ndash; {new Date().getFullYear()} Avro POS v2.0.3.12. All rights reserved.
+                &copy; 2023 &ndash; {new Date().getFullYear()} Avro POS v{APP_VERSION}. All rights reserved.
               </p>
             </div>
           </div>

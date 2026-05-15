@@ -119,6 +119,17 @@ export function InventoryView() {
     setMessage("");
     setBarcodeSvg("");
     try {
+      // Validate subcategoryId if provided
+      if (form.subcategoryId) {
+        const subcategory = categories
+          .flatMap(c => c.subcategories)
+          .find(s => s.id === form.subcategoryId);
+        if (!subcategory) {
+          setMessage("Invalid subcategory selected.");
+          return;
+        }
+      }
+
       const saved = await avroApi().upsertProduct({
         actorId: user?.id, id: form.id, sku: form.sku, name: form.name,
         price: Number(form.price), purchasePrice: Number(form.purchasePrice || 0),

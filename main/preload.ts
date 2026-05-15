@@ -23,6 +23,13 @@ const api = {
   scheduleBackup: (intervalMs: number, targetFolder?: string) => ipcRenderer.invoke("backup:schedule", { intervalMs, targetFolder }),
   stopScheduledBackup: () => ipcRenderer.invoke("backup:stopSchedule"),
   getBackupScheduleStatus: () => ipcRenderer.invoke("backup:scheduleStatus"),
+  backupOnClose: () => ipcRenderer.invoke("backup:onClose"),
+  confirmClose: () => ipcRenderer.invoke("app:confirmClose"),
+  onCloseRequest: (callback: (...args: unknown[]) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
+    ipcRenderer.on("backup:requestClose", listener);
+    return () => ipcRenderer.removeListener("backup:requestClose", listener);
+  },
   getSettings: () => ipcRenderer.invoke("settings:get"),
   updateSettings: (settings: unknown) => ipcRenderer.invoke("settings:update", settings),
   listAuditLogs: (limit?: number) => ipcRenderer.invoke("audit:list", { limit }),
@@ -31,6 +38,7 @@ const api = {
   sendLowStockEmail: () => ipcRenderer.invoke("inventory:sendLowStockEmail"),
   generateBarcode: (productId: string) => ipcRenderer.invoke("inventory:generateBarcode", productId),
   formatReceipt: (payload: unknown) => ipcRenderer.invoke("printer:formatReceipt", payload),
+  formatInvoiceA4: (payload: unknown) => ipcRenderer.invoke("printer:formatInvoiceA4", payload),
   formatBarcodeLabel: (payload: unknown) => ipcRenderer.invoke("printer:barcodeLabel", payload),
   processReturn: (payload: unknown) => ipcRenderer.invoke("sales:return", payload),
   listRefunds: (saleId?: string) => ipcRenderer.invoke("sales:refunds", saleId),
@@ -46,7 +54,9 @@ const api = {
   getCategoryDeleteInfo: (id: string) => ipcRenderer.invoke("categories:deleteInfo", id),
   upsertSubcategory: (subcategory: { id?: string; name: string; categoryId: string }) => ipcRenderer.invoke("subcategories:upsert", subcategory),
   deleteSubcategory: (id: string) => ipcRenderer.invoke("subcategories:delete", id),
-  checkForUpdate: () => ipcRenderer.invoke("update:check")
+  checkForUpdate: () => ipcRenderer.invoke("update:check"),
+  createExpense: (expense: any) => ipcRenderer.invoke("expense:create", expense),
+  listExpenses: (filter?: any) => ipcRenderer.invoke("expense:list", filter)
 };
 
 contextBridge.exposeInMainWorld("api", api);

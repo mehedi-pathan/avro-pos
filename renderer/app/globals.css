@@ -1,8 +1,11 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root, [data-theme="dark"] {
+  --bg-frame: #050D13;
   --bg-app: #0B1E2B;
   --bg-solid: #0B1E2B;
   --bg-card: #162C3E;
@@ -10,7 +13,7 @@
   --bg-input: #1B3C53;
   --bg-input-ghost: rgba(226, 232, 240, 0.06);
   --bg-overlay: rgba(0, 0, 0, 0.35);
-  --bg-sidebar: #162C3E;
+  --bg-sidebar: #0F2233;
   --bg-teal: #6366F1;
   --accent-primary: #6366F1;
   --color-danger: #DC9B9B;
@@ -28,6 +31,13 @@
   --glass-bg: rgba(22, 44, 62, 0.9);
   --glass-border: rgba(210, 193, 182, 0.12);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --nav-active-bg: rgba(99, 102, 241, 0.12);
+  --nav-active-text: #818CF8;
+  --card-stat-1: rgba(36, 123, 123, 0.10);
+  --card-stat-2: rgba(99, 102, 241, 0.10);
+  --card-stat-3: rgba(229, 169, 54, 0.10);
+  --card-stat-4: rgba(182, 107, 77, 0.10);
+  --footer-bg: #0A1825;
 }
 
 [data-theme="dark"] input:focus-visible,
@@ -43,6 +53,7 @@
 }
 
 [data-theme="light"] {
+  --bg-frame: #DDD8C8;
   --bg-app: #F6F4E8;
   --bg-solid: #F6F4E8;
   --bg-card: #E5EEE4;
@@ -52,15 +63,15 @@
   --bg-overlay: rgba(26, 26, 26, 0.05);
   --bg-sidebar: #E5EEE4;
   --bg-teal: #C0E1D2;
-  --accent-primary: #C0E1D2;
+  --accent-primary: #727272;
   --color-danger: #DC9B9B;
   --text-primary: #1A1A1A;
   --text-high: #1A1A1A;
-  --text-default: rgba(26, 26, 26, 0.78);
-  --text-mid: rgba(26, 26, 26, 0.62);
-  --text-secondary: rgba(26, 26, 26, 0.5);
-  --text-tertiary: rgba(26, 26, 26, 0.38);
-  --text-muted: rgba(26, 26, 26, 0.22);
+  --text-default: rgba(26, 26, 26, 0.85);
+  --text-mid: rgba(26, 26, 26, 0.72);
+  --text-secondary: rgba(26, 26, 26, 0.6);
+  --text-tertiary: rgba(26, 26, 26, 0.5);
+  --text-muted: rgba(26, 26, 26, 0.4);
   --text-message: #DC9B9B;
   --border-default: rgba(26, 26, 26, 0.1);
   --border-light: rgba(26, 26, 26, 0.16);
@@ -68,6 +79,13 @@
   --glass-bg: rgba(229, 238, 228, 0.85);
   --glass-border: rgba(26, 26, 26, 0.06);
   --glass-shadow: 0 8px 32px rgba(26, 26, 26, 0.08);
+  --nav-active-bg: rgba(99, 102, 241, 0.10);
+  --nav-active-text: #6366F1;
+  --card-stat-1: rgba(36, 123, 123, 0.08);
+  --card-stat-2: rgba(99, 102, 241, 0.08);
+  --card-stat-3: rgba(229, 169, 54, 0.08);
+  --card-stat-4: rgba(182, 107, 77, 0.08);
+  --footer-bg: rgba(26, 26, 26, 0.04);
 }
 
 * {
@@ -84,9 +102,13 @@ html, body {
   overflow: hidden;
   height: 100%;
   width: 100%;
-  background: var(--bg-app);
+  background: var(--bg-frame);
   color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: -0.011em;
   transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,
@@ -139,6 +161,11 @@ table thead {
   80%      { transform: translateX(4px); }
 }
 
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
+  50%      { box-shadow: 0 0 0 4px rgba(52, 211, 153, 0); }
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fade-in 0.5s ease-out;
@@ -148,6 +175,9 @@ table thead {
   }
   .animate-shake {
     animation: shake 0.4s ease-out;
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
   }
   .scrollable {
     overflow-y: auto;

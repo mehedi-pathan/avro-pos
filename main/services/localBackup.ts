@@ -7,7 +7,7 @@ function backupStamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
 
-async function writeBackupTo(folder: string) {
+export async function writeBackupTo(folder: string) {
   const backupFolder = path.join(folder, `avro-pos-backup-${backupStamp()}`);
   await fs.mkdir(backupFolder, { recursive: true });
 

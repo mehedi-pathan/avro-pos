@@ -148,12 +148,23 @@ export default function SettingsPage() {
               <h2 className="mb-4 font-semibold">Business settings</h2>
               <div className="grid gap-x-6 gap-y-0 md:grid-cols-2">
                 {[
-                  { key: "businessName" as const, label: "Business name", type: "text", ph: "Your store name" },
-                  { key: "address" as const, label: "Address", type: "text", ph: "Full business address" },
-                  { key: "taxId" as const, label: "Tax ID / VAT Number", type: "text", ph: "e.g. BIN or VAT reg no" },
+                  { key: "businessName" as const, label: "Business name", type: "text", ph: "Your shop or company name" },
+                  { key: "branchId" as const, label: "Branch ID", type: "text", ph: "Branch identifier for invoices" },
+                  { key: "branchName" as const, label: "Branch name", type: "text", ph: "Branch name for printed invoices" },
+                  { key: "branchAddress" as const, label: "Branch address", type: "text", ph: "Branch address for invoices" },
+                  { key: "address" as const, label: "Primary address", type: "text", ph: "Registered business address" },
+                  { key: "verifiedPhone" as const, label: "Verified phone", type: "text", ph: "Phone shown on invoices" },
+                  { key: "email" as const, label: "Email", type: "email", ph: "Business contact email" },
+                  { key: "website" as const, label: "Website", type: "text", ph: "Business website (optional)" },
+                  { key: "taxId" as const, label: "Tax ID / VAT number", type: "text", ph: "e.g. BIN or VAT registration number" },
+                  { key: "binNumber" as const, label: "BIN number", type: "text", ph: "Business Identification Number" },
+                  { key: "tinNumber" as const, label: "TIN number", type: "text", ph: "Taxpayer Identification Number" },
+                  { key: "tradeLicenseNumber" as const, label: "Trade license", type: "text", ph: "Trade license number" },
+                  { key: "mushakRegistration" as const, label: "Mushak registration", type: "text", ph: "Mushak registration number" },
+                  { key: "businessLogoPath" as const, label: "Logo path", type: "text", ph: "Local logo path for invoice printing" },
                   { key: "currencySymbol" as const, label: "Currency symbol", type: "text", ph: "e.g. ৳, $, ฿" },
-                  { key: "taxRate" as const, label: "Default tax rate (%)", type: "number", ph: "e.g. 5" },
-                  { key: "lowStockEmail" as const, label: "Low stock alert email", type: "email", ph: "admin@example.com" },
+                  { key: "taxRate" as const, label: "Default tax rate (%)", type: "number", ph: "e.g. 5 (set to 0 for no tax)" },
+                  { key: "lowStockEmail" as const, label: "Low stock alert email", type: "email", ph: "admin@example.com" }
                 ].map(({ key, label, type, ph }) => (
                   <label className="mb-3 block text-sm" key={key}>
                     {label}

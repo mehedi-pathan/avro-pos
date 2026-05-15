@@ -5,6 +5,18 @@ export type BusinessSettings = {
   businessName: string;
   address: string;
   taxId: string;
+  binNumber?: string;
+  tinNumber?: string;
+  tradeLicenseNumber?: string;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
+  verifiedPhone?: string;
+  email?: string;
+  website?: string;
+  socialLinks?: string;
+  mushakRegistration?: string;
+  businessLogoPath?: string;
   currencySymbol: string;
   lowStockEmail: string;
   taxRate: string;
@@ -15,6 +27,18 @@ const defaults: BusinessSettings = {
   businessName: "Avro POS",
   address: "",
   taxId: "",
+  binNumber: "",
+  tinNumber: "",
+  tradeLicenseNumber: "",
+  branchId: "",
+  branchName: "",
+  branchAddress: "",
+  verifiedPhone: "",
+  email: "",
+  website: "",
+  socialLinks: "",
+  mushakRegistration: "",
+  businessLogoPath: "",
   currencySymbol: "৳",
   lowStockEmail: "",
   taxRate: "5",

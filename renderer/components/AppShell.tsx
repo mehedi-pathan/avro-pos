@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { avroApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { APP_VERSION } from "@/lib/version";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6", capability: "CHECKOUT" as const },
@@ -244,7 +245,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
             )}
 
             <p className="mt-4 text-center text-[10px] text-[var(--text-muted)]">
-              Avro POS v2.0.3.12<br />
+              Avro POS v{APP_VERSION}<br />
               Developed by <a href="https://mehedipathan.online" target="_blank" rel="noopener noreferrer" className="text-teal/60 hover:text-teal">Mehedi Pathan</a>
             </p>
           </div>

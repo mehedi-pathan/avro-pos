@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { avroApi } from "@/lib/api";
 import type { BusinessSettings, Customer, Product, Sale } from "@/lib/types";
 import { useCart } from "@/store/useCart";
+import { APP_VERSION } from "@/lib/version";
 
 export function POSView() {
   const { user } = useAuth();
@@ -272,7 +273,7 @@ export function POSView() {
       </AnimatePresence>
 
       <motion.aside
-        animate={{ width: sidebarCollapsed ? 0 : 350 }}
+        animate={{ width: sidebarCollapsed ? 0 : 300 }}
         className="flex h-full shrink-0 flex-col overflow-hidden border-l border-[var(--border-default)] bg-[var(--bg-card)] backdrop-blur-xl"
         style={{ minWidth: 0 }}
       >
@@ -477,9 +478,21 @@ export function POSView() {
                 <button className="rounded bg-teal px-4 py-2 text-sm font-medium text-ink" onClick={() => {
                   avroApi().getSettings().then((settings) => {
                     const fmt = (n: number) => `${settings.currencySymbol}${n.toFixed(2)}`;
-                    const itemsHtml = lastSale.items.map((item) =>
-                      `<tr><td style="padding:4px">${item.product.name}</td><td style="padding:4px;text-align:center">${item.quantity}</td><td style="padding:4px;text-align:right">${fmt(item.unitPrice)}</td><td style="padding:4px;text-align:right">${fmt(item.lineTotal)}</td></tr>`
-                    ).join("");
+                    const itemsHtml = lastSale.items.map((item) => {
+                      const sku = item.product?.sku ?? "";
+                      const batch = item.productBatch ?? "";
+                      const itemDiscount = item.itemDiscountAmount ?? 0;
+                      const vatRate = item.vatRate ?? 0;
+                      const vatAmount = item.vatAmount ?? 0;
+                      return `<tr><td style=\"padding:6px 8px\">${item.product.name}${sku ? ` <small style=\\\"color:#666;font-size:11px\\\">[${sku}]</small>` : ""}${batch ? ` <small style=\\\"color:#666;font-size:11px\\\">(Batch:${batch})</small>` : ""}</td><td style=\"padding:6px 8px;text-align:center\">${item.quantity}</td><td style=\"padding:6px 8px;text-align:right\">${fmt(item.unitPrice)}</td><td style=\"padding:6px 8px;text-align:right\">${itemDiscount > 0 ? `-${fmt(itemDiscount)}` : "-"}</td><td style=\"padding:6px 8px;text-align:right\">${vatRate}%</td><td style=\"padding:6px 8px;text-align:right\">${fmt(vatAmount)}</td><td style=\"padding:6px 8px;text-align:right\">${fmt(item.lineTotal)}</td></tr>`;
+                    }).join("");
+                    const logoHtml = settings.businessLogoPath ? `<img src="${settings.businessLogoPath}" alt="logo" style="height:56px;object-fit:contain;margin-bottom:8px"/>` : "";
+                    const headerExtra = [];
+                    if (settings.binNumber) headerExtra.push(`BIN: ${settings.binNumber}`);
+                    if (settings.tinNumber) headerExtra.push(`TIN: ${settings.tinNumber}`);
+                    if (settings.tradeLicenseNumber) headerExtra.push(`Trade: ${settings.tradeLicenseNumber}`);
+                    const headerMeta = headerExtra.length ? ` | ${headerExtra.join(' | ')}` : "";
+
                     const html = /* html */`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
                       @page{size:A4;margin:15mm} body{font-family:'Segoe UI',Arial,sans-serif;color:#17202a;padding:20px}
                       .header{text-align:center;border-bottom:2px solid #ffe900;padding-bottom:14px;margin-bottom:16px}
@@ -494,16 +507,27 @@ export function POSView() {
                       .totals .final td{font-size:15px;font-weight:700;border-top:2px solid #221e1e;padding-top:6px}
                       .footer{text-align:center;margin-top:20px;padding-top:10px;border-top:1px solid #ddd;font-size:10px;color:#999}
                     </style></head><body>
-                      <div class="header"><h1>${settings.businessName}</h1><p>${settings.address}${settings.taxId ? ` | Tax: ${settings.taxId}` : ""}</p></div>
+                      <div class="header">${logoHtml}<h1>${settings.businessName}</h1><p>${settings.branchName ?? settings.businessName} • ${settings.branchAddress ?? settings.address}${headerMeta}</p><p>${settings.verifiedPhone ?? ''}${settings.email ? ` • ${settings.email}` : ''}${settings.website ? ` • ${settings.website}` : ''}</p></div>
                       <div class="meta"><div><strong>Receipt:</strong> ${lastSale.receiptNumber ?? lastSale.id}<br><strong>Date:</strong> ${new Date(lastSale.createdAt).toLocaleString()}</div>
                       <div style="text-align:right"><strong>Salesperson:</strong> ${lastSale.user?.displayName ?? "N/A"} (${lastSale.user?.staffId ?? ""})</div></div>
                       ${lastSale.customer ? `<p style="font-size:12px;margin-bottom:8px"><strong>Customer:</strong> ${lastSale.customer.name}${lastSale.customer.phone?.startsWith("vip") ? " (VIP)" : ` &mdash; ${lastSale.customer.phone}`}</p>` : ""}
-                      <table><thead><tr><th>Item</th><th style="width:50px;text-align:center">Qty</th><th style="width:80px;text-align:right">Price</th><th style="width:80px;text-align:right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+                      <table><thead><tr><th>Item</th><th style="width:50px;text-align:center">Qty</th><th style="width:80px;text-align:right">Unit</th><th style="width:80px;text-align:right">ItemDisc</th><th style="width:80px;text-align:right">VAT%</th><th style="width:80px;text-align:right">VAT Amt</th><th style="width:100px;text-align:right">Line Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
                       <table class="totals"><tr><td>Subtotal</td><td style="text-align:right">${fmt(lastSale.subtotal)}</td></tr>
-                      ${lastSale.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-${fmt(lastSale.discount)}</td></tr>` : ""}
-                      <tr><td>Tax</td><td style="text-align:right">${fmt(lastSale.tax)}</td></tr>
+                      ${lastSale.discount > 0 ? `<tr><td>Invoice Discount</td><td style="text-align:right">-${fmt(lastSale.discount)}</td></tr>` : ""}
+                      ${lastSale.tax > 0 ? `<tr><td>VAT Total</td><td style="text-align:right">${fmt(lastSale.tax)}</td></tr>` : ""}
                       <tr class="final"><td>Total</td><td style="text-align:right">${fmt(lastSale.totalAmount)}</td></tr></table>
-                      <div class="footer">Thank you for your business!<br>Powered by Avro POS v2.0.3.12 &mdash; Developed by Mehedi Pathan</div>
+                      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:flex-start">
+                        <div style="font-size:12px;color:#444">
+                          <p><strong>Payment:</strong> ${lastSale.paymentMethod ?? 'Cash'}</p>
+                          ${lastSale.payments && lastSale.payments.length ? `<p><strong>Transaction ID:</strong> ${lastSale.payments[0].transactionId ?? '-'}</p><p><strong>Payment Status:</strong> ${lastSale.payments[0].status ?? '-'}</p>` : (lastSale.transactionId ? `<p><strong>Transaction ID:</strong> ${lastSale.transactionId}</p>` : '')}
+                          <p><strong>Terminal ID:</strong> ${lastSale.terminalId ?? '-'} • <strong>Cashier:</strong> ${lastSale.user?.staffId ?? lastSale.user?.displayName ?? '-'}</p>
+                          <p><strong>Branch ID:</strong> ${lastSale.branchId ?? '-'} • <strong>Shift:</strong> ${lastSale.shiftNumber ?? '-'}</p>
+                        </div>
+                        <div style="text-align:center">
+                          <img src="https://chart.googleapis.com/chart?chs=120x120&cht=qr&chl=${encodeURIComponent(settings.website ? `${settings.website.replace(/\/$/, '')}/verify/${lastSale.id}` : `https://verify.avro-pos.local/sale/${lastSale.id}`)}&choe=UTF-8" alt="QR" style="height:100px;width:100px;border:1px solid #eee;padding:6px;background:#fff" />
+                          <div style="font-size:11px;color:#666;margin-top:6px">Scan to verify invoice</div>
+                        </div>
+                      </div>
                       <script>window.print();<\/script></body></html>`;
                     const w = window.open("", "_blank");
                     if (w) { w.document.write(html); w.document.close(); }
@@ -514,7 +538,7 @@ export function POSView() {
                 <button className="rounded border border-[var(--border-light)] px-4 py-2 text-sm text-[var(--text-high)]" onClick={() => {
                   avroApi().getSettings().then((settings) => {
                     avroApi().formatReceipt({
-                      settings: { businessName: settings.businessName, address: settings.address, taxId: settings.taxId, currencySymbol: settings.currencySymbol },
+                      settings,
                       sale: {
                         id: lastSale.id,
                         subtotal: lastSale.subtotal,

@@ -5,8 +5,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { bdMoney, bdDateTime } from "@/lib/bdFormat";
 import { useAuth } from "@/hooks/useAuth";
 import { avroApi } from "@/lib/api";
-import type { BusinessSettings, Customer, Product, Sale } from "@/lib/types";
+import type { BusinessSettings, Category, Customer, Product, Sale } from "@/lib/types";
 import { useCart } from "@/store/useCart";
+import { APP_VERSION } from "@/lib/version";
 
 type PaymentMethod = "cash" | "card" | "bkash" | "nagad" | "rocket" | "upay";
 
@@ -24,8 +25,10 @@ const digitalMethods: PaymentMethod[] = ["bkash", "nagad", "rocket", "upay"];
 export function CheckoutView() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [sku, setSku] = useState("");
   const [message, setMessage] = useState("");
   const [lastSale, setLastSale] = useState<Sale | null>(null);
@@ -34,9 +37,29 @@ export function CheckoutView() {
   const [processing, setProcessing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmPaid, setConfirmPaid] = useState(false);
+  const [customerDetails, setCustomerDetails] = useState({
+    name: "",
+    phone: "",
+    shopName: "",
+    address: "",
+    notes: ""
+  });
+  const [lastCustomerDetails, setLastCustomerDetails] = useState({
+    name: "",
+    phone: "",
+    shopName: "",
+    address: "",
+    notes: ""
+  });
   const cart = useCart();
   const searchRef = useRef<HTMLInputElement>(null);
   const [clock, setClock] = useState("");
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [addCustomerName, setAddCustomerName] = useState("");
+  const [showSaveCartModal, setShowSaveCartModal] = useState(false);
+  const [saveCartName, setSaveCartName] = useState("");
+  const [showCustomAmountModal, setShowCustomAmountModal] = useState(false);
+  const [customAmount, setCustomAmount] = useState("");
 
   const isDigital = digitalMethods.includes(paymentMethod);
   const isCard = paymentMethod === "card";
@@ -54,15 +77,17 @@ export function CheckoutView() {
   }, []);
 
   async function loadData() {
-    const [nextProducts, nextCustomers, settings] = await Promise.all([
+    const [nextProducts, nextCustomers, nextCategories, settings] = await Promise.all([
       avroApi().getProducts(),
       avroApi().listCustomers(),
+      avroApi().listCategories(),
       avroApi().getSettings(),
     ]);
     setProducts(nextProducts);
     setCustomers(nextCustomers);
+    setCategories(nextCategories);
     const rate = parseFloat((settings as unknown as BusinessSettings).taxRate ?? "5");
-    if (!isNaN(rate) && rate > 0) cart.setTaxRate(rate);
+    if (!isNaN(rate)) cart.setTaxRate(rate);
   }
 
   useEffect(() => {
@@ -82,11 +107,25 @@ export function CheckoutView() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return products;
-    return products.filter((p) =>
-      [p.sku, p.name, p.category ?? ""].some((v) => v.toLowerCase().includes(needle))
-    );
-  }, [products, query]);
+    let filteredProducts = products.filter((p) => p.stockLevel > 0);
+    
+    // Filter by selected category
+    if (selectedCategory) {
+      const selectedCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
+      filteredProducts = filteredProducts.filter((p) =>
+        p.subcategory?.category?.id === selectedCategory || p.category === selectedCategoryName
+      );
+    }
+    
+    // Filter by search query
+    if (needle) {
+      filteredProducts = filteredProducts.filter((p) =>
+        [p.sku, p.name, p.category ?? ""].some((v) => v.toLowerCase().includes(needle))
+      );
+    }
+    
+    return filteredProducts;
+  }, [products, query, selectedCategory]);
 
   function handleAddSku(e: FormEvent) {
     e.preventDefault();
@@ -121,13 +160,16 @@ export function CheckoutView() {
         discount: cart.discount,
         paymentMethod,
         items: cart.lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+        customerDetails: customerDetails.name || customerDetails.phone || customerDetails.shopName ? customerDetails : undefined,
       })) as { id: string };
+      setLastCustomerDetails(customerDetails);
       cart.clear();
       setConfirmPaid(false);
       await loadData();
       const fullSale = await avroApi().getSale(result.id);
       setLastSale(fullSale);
       setReceivedAmount(0);
+      setCustomerDetails({ name: "", phone: "", shopName: "", address: "", notes: "" });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Sale failed.");
     } finally {
@@ -139,6 +181,7 @@ export function CheckoutView() {
     cart.lines.length > 0 &&
     !processing &&
     (!isDigital || confirmPaid) &&
+    (paymentMethod === "cash" ? receivedAmount >= cart.total() : true) &&
     (!isCard || receivedAmount > 0 || true) &&
     (!isDigital || true);
 
@@ -158,6 +201,18 @@ export function CheckoutView() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
+          <select
+            className="w-40 rounded-lg border border-[var(--border-default)] bg-[var(--bg-input)] px-3 py-2.5 text-sm text-ink"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+          >
+            <option value="">All Categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
           <div className="flex items-center gap-2 text-xs text-[var(--text-mid)] whitespace-nowrap">
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -196,7 +251,7 @@ export function CheckoutView() {
                     >
                       <div className="aspect-[4/3] w-full bg-[var(--bg-input-ghost)] flex items-center justify-center overflow-hidden">
                         <img
-                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(product.name)}&background=247b7b&color=fff&size=128&bold=true&format=svg`}
+                          src={product.imagePath || `https://ui-avatars.com/api/?name=${encodeURIComponent(product.name)}&background=247b7b&color=fff&size=128&bold=true&format=svg`}
                           alt={product.name}
                           className="h-full w-full object-cover"
                           loading="lazy"
@@ -232,12 +287,8 @@ export function CheckoutView() {
                     setMessage("No customers available. Create one in Customers.");
                     return;
                   }
-                  const name = prompt("Customer name:");
-                  if (!name) return;
-                  avroApi().upsertCustomer({ name, phone: `walkin-${Date.now()}` }).then((c) => {
-                    cart.setCustomer(c);
-                    setCustomers(prev => [...prev, c]);
-                  }).catch((err) => setMessage(err.message));
+                  setAddCustomerName("");
+                  setShowAddCustomerModal(true);
                 }}
               >
                 + Add Customer
@@ -248,7 +299,21 @@ export function CheckoutView() {
               <select
                 className="flex-1 rounded bg-[var(--bg-input)] px-3 py-1.5 text-sm text-ink"
                 value={cart.customer?.id ?? ""}
-                onChange={(e) => cart.setCustomer(customers.find((c) => c.id === e.target.value) ?? null)}
+                onChange={(e) => {
+                  const selectedCustomer = customers.find((c) => c.id === e.target.value) ?? null;
+                  cart.setCustomer(selectedCustomer);
+                  if (selectedCustomer) {
+                    setCustomerDetails({
+                      name: selectedCustomer.name,
+                      phone: selectedCustomer.phone,
+                      shopName: "",
+                      address: "",
+                      notes: ""
+                    });
+                  } else {
+                    setCustomerDetails({ name: "", phone: "", shopName: "", address: "", notes: "" });
+                  }
+                }}
               >
                 <option value="">Walk-in customer</option>
                 {customers.map((c) => (
@@ -270,7 +335,55 @@ export function CheckoutView() {
               )}
             </div>
 
-            <div className="overflow-y-auto flex-1 min-h-0">
+            <div className="border-b border-[var(--border-default)] px-4 py-3 shrink-0 bg-[var(--bg-overlay)]">
+              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Customer Details (for Invoice)</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  className="rounded bg-[var(--bg-input)] px-2 py-1.5 text-xs text-ink"
+                  placeholder="Customer Name *"
+                  value={customerDetails.name}
+                  onChange={(e) => {
+                    setCustomerDetails({ ...customerDetails, name: e.target.value });
+                    if (e.target.value && cart.customer) cart.setCustomer(null);
+                  }}
+                />
+                <input
+                  className="rounded bg-[var(--bg-input)] px-2 py-1.5 text-xs text-ink"
+                  placeholder="Phone Number"
+                  value={customerDetails.phone}
+                  onChange={(e) => {
+                    setCustomerDetails({ ...customerDetails, phone: e.target.value });
+                    if (e.target.value && cart.customer) cart.setCustomer(null);
+                  }}
+                />
+                <input
+                  className="rounded bg-[var(--bg-input)] px-2 py-1.5 text-xs text-ink"
+                  placeholder="Shop/Business Name"
+                  value={customerDetails.shopName}
+                  onChange={(e) => {
+                    setCustomerDetails({ ...customerDetails, shopName: e.target.value });
+                    if (e.target.value && cart.customer) cart.setCustomer(null);
+                  }}
+                />
+                <input
+                  className="rounded bg-[var(--bg-input)] px-2 py-1.5 text-xs text-ink"
+                  placeholder="Address"
+                  value={customerDetails.address}
+                  onChange={(e) => {
+                    setCustomerDetails({ ...customerDetails, address: e.target.value });
+                    if (e.target.value && cart.customer) cart.setCustomer(null);
+                  }}
+                />
+                <input
+                  className="col-span-2 rounded bg-[var(--bg-input)] px-2 py-1.5 text-xs text-ink"
+                  placeholder="Notes (optional)"
+                  value={customerDetails.notes}
+                  onChange={(e) => setCustomerDetails({ ...customerDetails, notes: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
               {cart.lines.length > 0 ? (
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-[var(--bg-card)] z-10">
@@ -283,8 +396,8 @@ export function CheckoutView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {cart.lines.map((line) => (
-                      <tr key={line.product.id} className="border-t border-[var(--border-default)] group/item">
+                    {cart.lines.map((line, index) => (
+                      <tr key={`${line.product.id || "line"}-${index}`} className="border-t border-[var(--border-default)] group/item">
                         <td className="p-3 pl-4 text-[var(--text-primary)] truncate max-w-[160px]">{line.product.name}</td>
                         <td className="p-3 text-right text-[var(--text-high)] whitespace-nowrap">{bdMoney(line.product.price)}</td>
                         <td className="p-3">
@@ -308,7 +421,7 @@ export function CheckoutView() {
                   </tbody>
                 </table>
               ) : (
-                <div className="flex items-center justify-center py-16">
+                <div className="flex items-center justify-center h-full">
                   <p className="text-sm text-[var(--text-muted)]">Cart is empty</p>
                 </div>
               )}
@@ -318,8 +431,8 @@ export function CheckoutView() {
                 <button
                   className="flex-1 rounded-lg border border-[var(--border-light)] px-3 py-2 text-xs font-medium text-[var(--text-mid)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all"
                   onClick={() => {
-                    const name = prompt("Save cart as:");
-                    if (name) cart.parkCart(name);
+                    setSaveCartName("");
+                    setShowSaveCartModal(true);
                   }}
                 >
                   Save Cart
@@ -336,26 +449,28 @@ export function CheckoutView() {
         </div>
       </div>
 
-      <div className="flex w-[320px] shrink-0 flex-col gap-4 overflow-y-auto min-h-0">
-        <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--glass-shadow)] backdrop-blur-xl shrink-0">
-          <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Order Summary</h3>
+      <div className="flex w-[320px] shrink-0 flex-col gap-4 overflow-hidden">
+        <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--glass-shadow)] backdrop-blur-xl flex flex-col">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)] shrink-0">Order Summary</h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between text-[var(--text-default)]">
               <span>Subtotal</span>
               <span>{bdMoney(cart.subtotal())}</span>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[var(--text-default)]">Discount</span>
+              <span className="text-sm font-medium text-[var(--text-primary)]">Discount</span>
               <input
-                className="w-20 rounded bg-[var(--bg-input)] px-2 py-1 text-right text-sm text-ink"
+                className="w-28 rounded bg-[var(--bg-input)] px-3 py-2 text-right text-sm text-ink"
                 type="number" min={0} step="0.01" value={cart.discount}
                 onChange={(e) => cart.setDiscount(Number(e.target.value))}
               />
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[var(--text-default)]">VAT ({cart.taxRate}%)</span>
-              <span>{bdMoney(cart.tax())}</span>
-            </div>
+            {cart.taxRate > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[var(--text-default)]">VAT ({cart.taxRate}%)</span>
+                <span>{bdMoney(cart.tax())}</span>
+              </div>
+            )}
             <div className="flex justify-between border-t border-[var(--border-default)] pt-2 text-lg font-bold text-[var(--text-primary)]">
               <span>Due</span>
               <span>{bdMoney(cart.total())}</span>
@@ -363,9 +478,9 @@ export function CheckoutView() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--glass-shadow)] backdrop-blur-xl shrink-0">
-          <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Payment Method</h3>
-          <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--glass-shadow)] backdrop-blur-xl flex flex-col">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)] shrink-0">Payment Method</h3>
+          <div className="grid grid-cols-3 gap-2 shrink-0">
             {paymentMethods.map((pm) => (
               <button
                 key={pm.key}
@@ -387,71 +502,72 @@ export function CheckoutView() {
             ))}
           </div>
 
-          {paymentMethod === "cash" && cart.lines.length > 0 && (
-            <div className="mt-3 space-y-2 border-t border-[var(--border-default)] pt-3">
-              <label className="text-xs text-[var(--text-secondary)]">Quick Cash</label>
-              <div className="flex gap-1.5 flex-wrap">
-                {[500, 1000, 2000, 5000].map((amt) => (
+          <div className="mt-3">
+            {paymentMethod === "cash" && cart.lines.length > 0 && (
+              <div className="space-y-2 border-t border-[var(--border-default)] pt-3">
+                <label className="text-sm font-medium text-[var(--text-primary)]">Quick Cash</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[500, 1000, 2000, 5000].map((amt) => (
+                    <button
+                      key={amt}
+                      className={`rounded border px-2.5 py-1.5 text-xs transition-all ${
+                        receivedAmount === amt
+                          ? "border-teal/50 bg-teal/10 text-teal"
+                          : "border-[var(--border-default)] text-[var(--text-mid)] hover:bg-[var(--bg-card)]"
+                      }`}
+                      onClick={() => setReceivedAmount(amt)}
+                    >
+                      {bdMoney(amt)}
+                    </button>
+                  ))}
                   <button
-                    key={amt}
-                    className={`rounded border px-2.5 py-1 text-xs transition-all ${
-                      receivedAmount === amt
+                    className={`rounded border px-2.5 py-1.5 text-xs transition-all ${
+                      receivedAmount > 0 && ![500, 1000, 2000, 5000].includes(receivedAmount)
                         ? "border-teal/50 bg-teal/10 text-teal"
                         : "border-[var(--border-default)] text-[var(--text-mid)] hover:bg-[var(--bg-card)]"
                     }`}
-                    onClick={() => setReceivedAmount(amt)}
+                    onClick={() => {
+                      setCustomAmount("");
+                      setShowCustomAmountModal(true);
+                    }}
                   >
-                    {bdMoney(amt)}
+                    Custom
                   </button>
-                ))}
-                <button
-                  className={`rounded border px-2.5 py-1 text-xs transition-all ${
-                    receivedAmount > 0 && ![500, 1000, 2000, 5000].includes(receivedAmount)
-                      ? "border-teal/50 bg-teal/10 text-teal"
-                      : "border-[var(--border-default)] text-[var(--text-mid)] hover:bg-[var(--bg-card)]"
-                  }`}
-                  onClick={() => {
-                    const amt = prompt("Custom amount (৳):");
-                    if (amt) setReceivedAmount(Number(amt));
-                  }}
-                >
-                  Custom
-                </button>
-              </div>
-              <input
-                className="w-full rounded bg-[var(--bg-input)] px-3 py-1.5 text-sm text-ink"
-                type="number" min={0} step="0.01" placeholder="Enter received amount"
-                value={receivedAmount || ""}
-                onChange={(e) => setReceivedAmount(Number(e.target.value))}
-              />
-              {receivedAmount >= cart.total() && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-[var(--text-default)]">Change</span>
-                  <span className="font-semibold text-emerald-400">{bdMoney(change)}</span>
                 </div>
-              )}
-            </div>
-          )}
-
-          {(isCard || isDigital) && cart.lines.length > 0 && (
-            <div className="mt-3 space-y-2 border-t border-[var(--border-default)] pt-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-[var(--text-default)]">Total Due</span>
-                <span className="font-bold text-[var(--text-primary)]">{bdMoney(cart.total())}</span>
+                <label className="text-sm font-medium text-[var(--text-primary)]">Received Amount</label>
+                <input
+                  className="w-full rounded bg-[var(--bg-input)] px-3 py-2.5 text-sm text-ink"
+                  type="number" min={0} step="0.01" placeholder="Enter received amount"
+                  value={receivedAmount || ""}
+                  onChange={(e) => setReceivedAmount(Number(e.target.value))}
+                />
+                {receivedAmount >= cart.total() && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">Change</span>
+                    <span className="font-semibold text-emerald-400">{bdMoney(change)}</span>
+                  </div>
+                )}
               </div>
-              {(isDigital && confirmPaid) && (
-                <p className="text-xs text-emerald-400">Payment confirmed via {paymentMethod === "bkash" ? "bKash" : paymentMethod === "nagad" ? "Nagad" : paymentMethod === "rocket" ? "Rocket" : "uPay"}</p>
-              )}
-            </div>
-          )}
+            )}
+
+            {(isCard || isDigital) && cart.lines.length > 0 && (
+              <div className="space-y-2 border-t border-[var(--border-default)] pt-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--text-default)]">Total Due</span>
+                  <span className="font-bold text-[var(--text-primary)]">{bdMoney(cart.total())}</span>
+                </div>
+                {(isDigital && confirmPaid) && (
+                  <p className="text-xs text-emerald-400">Payment confirmed via {paymentMethod === "bkash" ? "bKash" : paymentMethod === "nagad" ? "Nagad" : paymentMethod === "rocket" ? "Rocket" : "uPay"}</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <AnimatePresence>
           {message && (
             <motion.p
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
+            key="checkout-message"
               className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-400 shrink-0"
             >
               {message}
@@ -473,6 +589,7 @@ export function CheckoutView() {
       <AnimatePresence>
         {showConfirm && (
           <motion.div
+            key="payment-confirm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -517,6 +634,7 @@ export function CheckoutView() {
       <AnimatePresence>
         {lastSale && (
           <motion.div
+            key="payment-success"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -570,8 +688,8 @@ export function CheckoutView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {lastSale.items.map((item) => (
-                      <tr key={item.id} className="border-t border-[var(--border-default)]">
+                    {lastSale.items.map((item, index) => (
+                      <tr key={`${item.id || item.productId || "sale-item"}-${index}`} className="border-t border-[var(--border-default)]">
                         <td className="p-2.5 pl-3 text-[var(--text-primary)]">{item.product.name}</td>
                         <td className="p-2.5 text-center text-[var(--text-high)]">{item.quantity}&times;{bdMoney(item.unitPrice)}</td>
                         <td className="p-2.5 pr-3 text-right font-medium text-[var(--text-primary)]">{bdMoney(item.lineTotal)}</td>
@@ -617,31 +735,94 @@ export function CheckoutView() {
                     avroApi().getSettings().then((settings) => {
                       const currencySymbol = settings.currencySymbol;
                       const fmt = (n: number) => `${currencySymbol}${n.toFixed(2)}`;
-                      const itemsHtml = lastSale.items.map((item) =>
-                        `<tr><td style="padding:4px">${item.product.name}</td><td style="padding:4px;text-align:center">${item.quantity}</td><td style="padding:4px;text-align:right">${fmt(item.unitPrice)}</td><td style="padding:4px;text-align:right">${fmt(item.lineTotal)}</td></tr>`
+                      const itemsHtml = lastSale.items.map((item) => {
+                        const sku = item.product?.sku ?? "";
+                        const batch = item.productBatch ?? "";
+                        const itemDiscount = item.itemDiscountAmount ?? 0;
+                        const vatRate = item.vatRate ?? 0;
+                        const vatAmount = item.vatAmount ?? 0;
+                        return `<tr>
+                          <td style="padding:6px 8px">${item.product.name}${sku ? ` <small style=\"color:#666;font-size:11px\">[${sku}]</small>` : ""}${batch ? ` <small style=\"color:#666;font-size:11px\">(Batch:${batch})</small>` : ""}</td>
+                          <td style="padding:6px 8px;text-align:center">${item.quantity}</td>
+                          <td style="padding:6px 8px;text-align:right">${fmt(item.unitPrice)}</td>
+                          <td style="padding:6px 8px;text-align:right">${itemDiscount > 0 ? `-${fmt(itemDiscount)}` : "-"}</td>
+                          <td style="padding:6px 8px;text-align:right">${vatRate}%</td>
+                          <td style="padding:6px 8px;text-align:right">${fmt(vatAmount)}</td>
+                          <td style="padding:6px 8px;text-align:right">${fmt(item.lineTotal)}</td>
+                        </tr>`;
+                      }).join("");
+
+                      // VAT summary grouped by rate
+                      const vatGroups = (lastSale.items || []).reduce((acc: Record<string, { rate: number; vat: number; taxable: number }>, it: any) => {
+                        const key = `${it.vatRate ?? 0}`;
+                        if (!acc[key]) acc[key] = { rate: Number(it.vatRate ?? 0), vat: 0, taxable: 0 };
+                        acc[key].vat += Number(it.vatAmount ?? 0);
+                        acc[key].taxable += Number((it.lineSubtotal ?? (it.lineTotal - (it.vatAmount ?? 0))) ?? 0);
+                        return acc;
+                      }, {} as Record<string, { rate: number; vat: number; taxable: number }>);
+                      const vatSummaryHtml = (Object.values(vatGroups) as Array<{ rate: number; vat: number; taxable: number }>).map(
+                        (row) => `<tr><td style="padding:6px 10px">VAT (${row.rate}%)</td><td style="text-align:right;padding:6px 10px">${fmt(row.vat)}</td></tr>`
                       ).join("");
+                      const logoHtml = settings.businessLogoPath ? `<img src="${settings.businessLogoPath}" alt="logo" style="height:56px;object-fit:contain;margin-bottom:8px"/>` : "";
+                      const headerExtra = [];
+                      if (settings.binNumber) headerExtra.push(`BIN: ${settings.binNumber}`);
+                      if (settings.tinNumber) headerExtra.push(`TIN: ${settings.tinNumber}`);
+                      if (settings.tradeLicenseNumber) headerExtra.push(`Trade: ${settings.tradeLicenseNumber}`);
+                      const headerMeta = headerExtra.length ? ` | ${headerExtra.join(' | ')}` : "";
+
+                      const verificationUrl = settings.website ? `${settings.website.replace(/\/$/, '')}/verify/${lastSale.id}` : `https://verify.avro-pos.local/sale/${lastSale.id}`;
+                      const qrSrc = `https://chart.googleapis.com/chart?chs=140x140&cht=qr&chl=${encodeURIComponent(verificationUrl)}&choe=UTF-8`;
+
                       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice</title><style>
-                        @page{size:A4;margin:15mm} body{font-family:'Segoe UI',Arial,sans-serif;color:#17202a;padding:20px}
+                        @page{size:A4 portrait;margin:15mm} body{font-family:'Segoe UI',Arial,sans-serif;color:#17202a;padding:20px}
                         .header{text-align:center;border-bottom:2px solid #247b7b;padding-bottom:14px;margin-bottom:16px}
                         .header h1{margin:0;font-size:22px;color:#247b7b}
                         .meta{display:flex;justify-content:space-between;margin-bottom:14px;font-size:12px;color:#444}
+                        .customer-section{background:#f8f9fa;padding:12px;border-radius:4px;margin-bottom:14px;border-left:3px solid #247b7b}
+                        .customer-section h3{margin:0 0 8px 0;font-size:13px;color:#247b7b}
+                        .customer-details{font-size:12px;line-height:1.6;color:#444}
+                        .customer-details p{margin:2px 0}
                         table{width:100%;border-collapse:collapse;margin-bottom:14px}
                         th{background:#247b7b;color:#fff;padding:6px;text-align:left;font-size:12px} th:last-child{text-align:right}
                         td{border-bottom:1px solid #ddd;padding:6px;font-size:12px}
                         .totals{width:280px;margin-left:auto} .totals td{border:none;padding:3px 8px}
                         .totals .final td{font-size:16px;font-weight:700;border-top:2px solid #247b7b;padding-top:6px}
-                        .footer{text-align:center;margin-top:20px;padding-top:10px;border-top:1px solid #ddd;font-size:10px;color:#999}
+                        .footer{text-align:left;margin-top:20px;padding-top:10px;border-top:1px solid #ddd;font-size:10px;color:#999;line-height:1.6}
                       </style></head><body>
-                        <div class="header"><h1>${settings.businessName}</h1><p>${settings.address}${settings.taxId ? ` | Tax: ${settings.taxId}` : ""}</p></div>
+                        <div class="header">${logoHtml}<h1>${settings.businessName}</h1><p>${settings.branchName ?? settings.businessName} • ${settings.branchAddress ?? settings.address}${headerMeta}</p><p>${settings.verifiedPhone ?? ''}${settings.email ? ` • ${settings.email}` : ''}${settings.website ? ` • ${settings.website}` : ''}</p></div>
                         <div class="meta"><div><strong>Invoice:</strong> ${lastSale.receiptNumber ?? lastSale.id}<br><strong>Date:</strong> ${bdDateTime(lastSale.createdAt)}</div>
                         <div style="text-align:right"><strong>Salesperson:</strong> ${lastSale.user?.displayName ?? "N/A"} (${lastSale.user?.staffId ?? ""})<br><strong>Payment:</strong> ${lastSale.paymentMethod ?? "Cash"}</div></div>
-                        ${lastSale.customer ? `<p style="font-size:12px;margin-bottom:8px"><strong>Customer:</strong> ${lastSale.customer.name}</p>` : ""}
-                        <table><thead><tr><th>Item</th><th style="width:50px;text-align:center">Qty</th><th style="width:80px;text-align:right">Price</th><th style="width:80px;text-align:right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+                        ${(lastSale.customer || customerDetails.name) ? `<div class="customer-section"><h3>Bill To:</h3><div class="customer-details">
+                          ${lastSale.customer ? `<p><strong>Name:</strong> ${lastSale.customer.name}</p>` : customerDetails.name ? `<p><strong>Name:</strong> ${customerDetails.name}</p>` : ""}
+                          ${lastSale.customer ? `<p><strong>Phone:</strong> ${lastSale.customer.phone}</p>` : customerDetails.phone ? `<p><strong>Phone:</strong> ${customerDetails.phone}</p>` : ""}
+                          ${customerDetails.shopName ? `<p><strong>Shop/Business:</strong> ${customerDetails.shopName}</p>` : ""}
+                          ${customerDetails.address ? `<p><strong>Address:</strong> ${customerDetails.address}</p>` : ""}
+                          ${customerDetails.notes ? `<p><strong>Notes:</strong> ${customerDetails.notes}</p>` : ""}
+                        </div></div>` : ""}
+                        <table><thead><tr><th>Item</th><th style="width:50px;text-align:center">Qty</th><th style="width:80px;text-align:right">Unit</th><th style="width:80px;text-align:right">ItemDisc</th><th style="width:80px;text-align:right">VAT%</th><th style="width:80px;text-align:right">VAT Amt</th><th style="width:100px;text-align:right">Line Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
                         <table class="totals"><tr><td>Subtotal</td><td style="text-align:right">${fmt(lastSale.subtotal)}</td></tr>
-                        ${lastSale.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-${fmt(lastSale.discount)}</td></tr>` : ""}
-                        <tr><td>VAT</td><td style="text-align:right">${fmt(lastSale.tax)}</td></tr>
-                        <tr class="final"><td>Total</td><td style="text-align:right">${fmt(lastSale.totalAmount)}</td></tr></table>
-                        <div class="footer">Thank you for your business!<br>Powered by Avro POS v2.0.3.12 &mdash; Developed by Mehedi Pathan</div>
+                        ${lastSale.discount > 0 ? `<tr><td>Invoice Discount</td><td style="text-align:right">-${fmt(lastSale.discount)}</td></tr>` : ""}
+                        ${vatSummaryHtml ? `${vatSummaryHtml}` : (lastSale.tax > 0 ? `<tr><td>VAT</td><td style="text-align:right">${fmt(lastSale.tax)}</td></tr>` : "")}
+                        <tr class="final"><td>Total (${settings.currencySymbol} / ${settings.currencySymbol === '৳' ? 'BDT' : ''})</td><td style="text-align:right">${fmt(lastSale.totalAmount)}</td></tr></table>
+
+                        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:flex-start">
+                          <div style="font-size:12px;color:#444">
+                            <p><strong>Payment:</strong> ${lastSale.paymentMethod ?? 'Cash'}</p>
+                            ${lastSale.payments && lastSale.payments.length ? `<p><strong>Transaction ID:</strong> ${lastSale.payments[0].transactionId ?? '-'}</p><p><strong>Payment Status:</strong> ${lastSale.payments[0].status ?? '-'}</p>` : (lastSale.transactionId ? `<p><strong>Transaction ID:</strong> ${lastSale.transactionId}</p>` : '')}
+                            <p><strong>Paid:</strong> ${fmt(lastSale.paidAmount ?? lastSale.totalAmount ?? 0)} ${lastSale.dueAmount ? `<strong>Due:</strong> ${fmt(lastSale.dueAmount)}` : ''}</p>
+                            <p><strong>Terminal ID:</strong> ${lastSale.terminalId ?? '-'} • <strong>Cashier:</strong> ${lastSale.user?.staffId ?? lastSale.user?.displayName ?? '-'}</p>
+                            <p><strong>Branch ID:</strong> ${lastSale.branchId ?? '-'} • <strong>Shift:</strong> ${lastSale.shiftNumber ?? '-'}</p>
+                          </div>
+                          <div style="text-align:center">
+                            <img src="${qrSrc}" alt="QR" style="height:120px;width:120px;border:1px solid #eee;padding:6px;background:#fff" />
+                            <div style="font-size:11px;color:#666;margin-top:6px">Scan to verify invoice</div>
+                          </div>
+                        </div>
+                        <div class="footer">
+                          <strong>সতর্কতা:</strong> পণ্যের ওয়ারেন্টি, গ্যারান্টি এবং পরিবর্তনের নিয়মাবলী অনুগ্রহ করে বিক্রয়কর্মীর নিকট থেকে জেনে নিন। শর্তসাপেক্ষে পণ্য ফেরত বা পরিবর্তনের ক্ষেত্রে অবশ্যই অত্র মেমোটি সাথে আনতে হবে। মেমো ব্যতীত কোনো দাবি গ্রহণযোগ্য হবে না। ধন্যবাদ<br><br>
+                          <strong>Mushak:</strong> ${settings.mushakRegistration ?? 'N/A'}<br>
+                          <em>This is a software-generated invoice/memo by ${settings.businessName}, ${settings.branchAddress ?? settings.address}. Thanks for your purchase from us.</em>
+                        </div>
                         <script>window.print();<\/script></body></html>`;
                       const w = window.open("", "_blank");
                       if (w) { w.document.write(html); w.document.close(); }
@@ -655,7 +836,7 @@ export function CheckoutView() {
                   onClick={() => {
                     avroApi().getSettings().then((settings) => {
                       avroApi().formatReceipt({
-                        settings: { businessName: settings.businessName, address: settings.address, taxId: settings.taxId, currencySymbol: settings.currencySymbol },
+                        settings,
                         sale: {
                           id: lastSale.id,
                           subtotal: lastSale.subtotal,
@@ -670,6 +851,9 @@ export function CheckoutView() {
                             lineTotal: i.lineTotal,
                             product: { name: i.product.name, sku: i.product.sku },
                           })),
+                          customer: lastSale.customer,
+                          customerDetails: lastCustomerDetails.name || lastCustomerDetails.phone || lastCustomerDetails.shopName ? lastCustomerDetails : undefined,
+                          user: lastSale.user ? { displayName: lastSale.user.displayName, staffId: lastSale.user.staffId } : undefined,
                         },
                       }).then((receiptText: string) => {
                         const w = window.open("", "_blank");
@@ -694,6 +878,201 @@ export function CheckoutView() {
             </motion.div>
           </motion.div>
         )}
+
+        {/* Add Customer Modal */}
+        <AnimatePresence>
+          {showAddCustomerModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowAddCustomerModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">Add Customer</h3>
+                <input
+                  type="text"
+                  value={addCustomerName}
+                  onChange={(e) => setAddCustomerName(e.target.value)}
+                  placeholder="Customer name"
+                  className="mb-4 w-80 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-2 text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && addCustomerName.trim()) {
+                      avroApi()
+                        .upsertCustomer({ name: addCustomerName, phone: `walkin-${Date.now()}` })
+                        .then((cust) => {
+                          cart.setCustomer(cust);
+                          setShowAddCustomerModal(false);
+                          setAddCustomerName("");
+                        });
+                    } else if (e.key === "Escape") {
+                      setShowAddCustomerModal(false);
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    className="flex-1 rounded-lg border border-[var(--border-light)] px-4 py-2.5 text-sm text-[var(--text-high)] hover:bg-[var(--bg-card-hover)] transition-all"
+                    onClick={() => setShowAddCustomerModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="flex-1 rounded-lg bg-[var(--accent-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--accent-primary)]/90 transition-all disabled:opacity-50"
+                    onClick={() => {
+                      if (addCustomerName.trim()) {
+                        avroApi()
+                          .upsertCustomer({ name: addCustomerName, phone: `walkin-${Date.now()}` })
+                          .then((cust) => {
+                            cart.setCustomer(cust);
+                            setShowAddCustomerModal(false);
+                            setAddCustomerName("");
+                          });
+                      }
+                    }}
+                    disabled={!addCustomerName.trim()}
+                  >
+                    Add Customer
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Save Cart Modal */}
+        <AnimatePresence>
+          {showSaveCartModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowSaveCartModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">Save Cart</h3>
+                <input
+                  type="text"
+                  value={saveCartName}
+                  onChange={(e) => setSaveCartName(e.target.value)}
+                  placeholder="Cart label/name"
+                  className="mb-4 w-80 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-2 text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && saveCartName.trim()) {
+                      cart.parkCart(saveCartName);
+                      setShowSaveCartModal(false);
+                      setSaveCartName("");
+                    } else if (e.key === "Escape") {
+                      setShowSaveCartModal(false);
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    className="flex-1 rounded-lg border border-[var(--border-light)] px-4 py-2.5 text-sm text-[var(--text-high)] hover:bg-[var(--bg-card-hover)] transition-all"
+                    onClick={() => setShowSaveCartModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="flex-1 rounded-lg bg-[var(--accent-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--accent-primary)]/90 transition-all disabled:opacity-50"
+                    onClick={() => {
+                      if (saveCartName.trim()) {
+                        cart.parkCart(saveCartName);
+                        setShowSaveCartModal(false);
+                        setSaveCartName("");
+                      }
+                    }}
+                    disabled={!saveCartName.trim()}
+                  >
+                    Save Cart
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Custom Amount Modal */}
+        <AnimatePresence>
+          {showCustomAmountModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowCustomAmountModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">Custom Amount</h3>
+                <input
+                  type="number"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder="Amount (৳)"
+                  className="mb-4 w-80 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-2 text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && customAmount.trim()) {
+                      const amt = Number(customAmount);
+                      if (!isNaN(amt) && amt > 0) {
+                        setReceivedAmount(amt);
+                        setShowCustomAmountModal(false);
+                        setCustomAmount("");
+                      }
+                    } else if (e.key === "Escape") {
+                      setShowCustomAmountModal(false);
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    className="flex-1 rounded-lg border border-[var(--border-light)] px-4 py-2.5 text-sm text-[var(--text-high)] hover:bg-[var(--bg-card-hover)] transition-all"
+                    onClick={() => setShowCustomAmountModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="flex-1 rounded-lg bg-[var(--accent-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--accent-primary)]/90 transition-all disabled:opacity-50"
+                    onClick={() => {
+                      const amt = Number(customAmount);
+                      if (!isNaN(amt) && amt > 0) {
+                        setReceivedAmount(amt);
+                        setShowCustomAmountModal(false);
+                        setCustomAmount("");
+                      }
+                    }}
+                    disabled={!customAmount.trim() || isNaN(Number(customAmount)) || Number(customAmount) <= 0}
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </AnimatePresence>
     </div>
   );

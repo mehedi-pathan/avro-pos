@@ -16,19 +16,6 @@
     "prisma:push": "prisma db push",
     "lint": "eslint renderer --max-warnings 0"
   },
-  "build": {
-    "files": [
-      "**/*",
-      "!.env.local",
-      "!.env.development",
-      "!.env.test",
-      "!.env.production"
-    ],
-    "extraResources": [
-      ".env",
-      "credentials/**/*"
-    ]
-  },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
     "@prisma/client": "^5.22.0",
